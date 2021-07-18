@@ -110,7 +110,7 @@ const getImgRealProps = ({
     ratio = height / width
   }
 
-  let blurSrc = getHttpsSrc(src) + `?imageMogr2/thumbnail/30x30/blur/3x5`
+  const blurSrc = getHttpsSrc(src) + `?imageMogr2/thumbnail/30x30/blur/3x5`
 
   return {
     widthInt: width,
@@ -123,7 +123,10 @@ const getImgRealProps = ({
 
 // See https://stackoverflow.com/q/39777833/266535 for why we use this ref
 // handler instead of the img's onLoad attribute.
-function handleLoading(img, onLoadingComplete) {
+function handleLoading(
+  img: HTMLImageElement | null,
+  onLoadingComplete?: () => void
+) {
   if (!img) {
     return
   }
