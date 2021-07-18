@@ -34,7 +34,7 @@ export const getWebpSupport = () => isSupportWebp
  * 支持 Chrome、Firefox 浏览器
  * Safari 14支持 webp 格式，但 dataUrl 中还是 image/png
  */
-export function checkCanvasWebP(): boolean {
+export function checkCanvasWebP() {
   const ele = document.createElement('canvas')
   if (ele && typeof ele.toDataURL === 'function') {
     const dataUrl = ele.toDataURL('image/webp') || ''
@@ -48,7 +48,7 @@ export function checkCanvasWebP(): boolean {
  * @param {string} url 图片地址
  * @returns {string} 获取的源图片地址
  */
-export function getOriginImgUrl(url = ''): string {
+export function getOriginImgUrl(url = '') {
   const originUrl = url.split('?').length > 0 ? url.split('?')[0] : url
 
   return originUrl || ''
@@ -65,10 +65,10 @@ export function getOriginImgUrl(url = ''): string {
  * @returns {string} 根据参数拼接的新图片地址
  */
 export function getImgByWidth(
-  url: string,
-  maxWidth: number,
-  prefix: string = '?imageView2/2/w/'
-): string {
+  url,
+  maxWidth,
+  prefix = '?imageView2/2/w/'
+) {
   const originUrl = getOriginImgUrl(url)
   return `${originUrl}${prefix}${Math.ceil(maxWidth)}`
 }
@@ -84,10 +84,10 @@ export function getImgByWidth(
  * @returns {string} 根据参数拼接的新图片地址
  */
 export function getWebpByWidth(
-  url: string,
-  maxWidth: number,
-  prefix: string = '?imageView2/2/w/'
-): string {
+  url,
+  maxWidth,
+  prefix = '?imageView2/2/w/'
+) {
   const originUrl = getOriginImgUrl(url)
 
   return `${originUrl}${prefix}${Math.ceil(maxWidth)}${

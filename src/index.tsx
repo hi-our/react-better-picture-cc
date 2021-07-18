@@ -1,18 +1,6 @@
-import * as React from 'react'
-import {
-  getImgByWidth,
-  getWebpByWidth,
-  getWebpSupport,
-  checkCanvasWebP,
-  checkLoadWebp,
-} from './image-utils'
-
-const BETTER_CLASS = `xxl-better-image`
-
-// 在 IE 浏览器上都不支持 IntersectionObserver
-const isHaveIntersectionObserver = !!window.IntersectionObserver
-
-const blur = 'imageMogr2/thumbnail/30x30/blur/3x5'
+import React, { useState, useEffect } from 'react'
+// import styles from './styles.global.styl'
+import { useInView } from 'react-intersection-observer'
 
 interface UIProps {
   /**
@@ -20,9 +8,13 @@ interface UIProps {
    */
   src: string
   /**
-   * 图片的最大宽度
+   * 图片布局方式
    */
-  maxImageWidth: number
+  layout?: string
+  /**
+   * 图片Fit
+   */
+  objectFit?: string
   /**
    * 图片宽度
    */
@@ -32,7 +24,11 @@ interface UIProps {
    */
   height?: number
   /**
-   * 图片高宽比 height / width
+   * 七牛图片的最大宽度
+   */
+  maxImageWidth?: number
+  /**
+   * 图片高宽比 h / w
    */
   ratio?: number
   /**
@@ -46,174 +42,248 @@ interface UIProps {
   /**
    * 自定义 ClassName
    */
-  className?: string
+  className: string
   /**
    * 用来扩展或缩小rootBounds这个矩形的大小
    * 从而影响intersectionRect交叉区域的大小
    * 它使用CSS的定义方法，比如10px 20px 30px 40px，表示 top、right、bottom 和 left 四个方向的值
    */
   rootMargin?: string
-}
-
-interface UIState {
   /**
-   * 图片是否加载完成
+   * 是否使用loading动画
    */
-  isLoaded: boolean
+  withAnimation?: boolean
+  /**
+   * 点击方法
+   */
+  onClick: () => void
 }
 
-export default class BetterImage extends React.Component<UIProps, UIState> {
-  static defaultProps = {
-    src: `https://image-hosting.xiaoxili.com/img/img/20201018/7b73f4d58c9ad761e01eafed77a2d28f-750765.png`,
-    enableWebp: true,
-    className: ''
+
+const PREFIX = 'xxl'
+
+const cx = require('classnames/bind') //.bind(styles)
+
+const PREFIX_CLASS = PREFIX + '-better-picture'
+
+const getHttpsSrc = (src = '') => src.replace('http://', 'https://')
+
+const detectAspectRatio = () => {
+  const cssSupports = !!(window.CSS && window.CSS.supports)
+  return cssSupports ? window.CSS.supports('aspect-ratio', '1/1') : false
+}
+
+const isSupportRatio = detectAspectRatio()
+
+// 计算七牛云所需图片
+const compressImage = (
+  src: string,
+  maxImageWidth: number,
+  needWebp?: boolean
+): string => {
+  if (src.startsWith('data:')) return src
+
+  let compressedSrc = `${getHttpsSrc(src)}?imageView2/2`
+
+  if (maxImageWidth) {
+    compressedSrc = `${compressedSrc}/w/${maxImageWidth}`
   }
 
-  _intersectionObserver: any
-  imageWrapRef: any
-
-  constructor(props: UIProps) {
-    super(props)
-    this.state = {
-      isLoaded: false
-    }
+  if (needWebp) {
+    compressedSrc = `${compressedSrc}/format/webp/ignore-error/1`
   }
 
-  componentDidMount() {
-    const { rootMargin, disableBlur } = this.props
-    // 判断是否支持图片监测
-    if (isHaveIntersectionObserver) {
-      // 判断是否出现占位图
-      if (!disableBlur) {
-        // 设置图片监测
-        this._intersectionObserver = new IntersectionObserver(
-          (entries) => {
-            if (entries[0].intersectionRatio > 0) {
-              this.loadOriginImage()
-            }
-          },
-          {
-            rootMargin,
-            threshold: [0, 0.1, 0.25, 0.5, 0.75, 1]
-          }
-        )
+  return compressedSrc
+}
 
-        this._intersectionObserver.observe(this.imageWrapRef)
-      }
-    } else {
-      if (console.log) {
-        console.log(`
-          BetterImage 组件需要引入“intersection-observer”依赖才能完整使用
-        `)
-      }
-    }
+const getImgRealProps = ({
+  src,
+  width,
+  height,
+  ratio,
+  maxImageWidth
+}: UIProps) => {
+  if (ratio) {
+    width = maxImageWidth
+    height = parseInt(maxImageWidth * ratio)
+  } else if (width && height) {
+    ratio = height / width
   }
 
-  // 加载图片
-  loadOriginImage = () => {
-    // 加载成功后，无需重复加载
-    const { isLoaded } = this.state
-    if (isLoaded) return
+  let blurSrc = getHttpsSrc(src) + `?imageMogr2/thumbnail/30x30/blur/3x5`
 
-    // 图片加载
-    const img = new Image()
-    img.onload = () => {
-      // 图片加载完后，取消图片监测
-      this._intersectionObserver.unobserve(this.imageWrapRef)
-      this.setState({
-        isLoaded: true
+  return {
+    widthInt: width,
+    heightInt: height,
+    ratioInt: ratio || 0,
+    blurSrc,
+    maxWidthInt: maxImageWidth || width * 3
+  }
+}
+
+// See https://stackoverflow.com/q/39777833/266535 for why we use this ref
+// handler instead of the img's onLoad attribute.
+function handleLoading(img, onLoadingComplete) {
+  if (!img) {
+    return
+  }
+
+  // console.log(`img.src`, img.src)
+  const handleLoad = () => {
+    if (!img.src.startsWith('data:')) {
+      const p = 'decode' in img ? img.decode() : Promise.resolve()
+      p.catch(() => {}).then(() => {
+        if (onLoadingComplete) {
+          onLoadingComplete()
+        }
       })
     }
-    img.src = this.compressImage()
   }
-
-  // 计算所需图片
-  compressImage = () => {
-    const { src, maxImageWidth, enableWebp } = this.props
-    return enableWebp && getWebpSupport()
-      ? getWebpByWidth(src, maxImageWidth)
-      : getImgByWidth(src, maxImageWidth)
-  }
-
-  render() {
-    const { src, width, height, ratio, className, disableBlur } = this.props
-    const { isLoaded } = this.state
-    const imageUrl = this.compressImage()
-
-    const showBlurUrl = isHaveIntersectionObserver && !disableBlur && !isLoaded
-    const renderImageSrc = showBlurUrl ? `${src}?${blur}` : imageUrl
-
-    if (!(ratio || (width && height))) {
-      return (
-        <img
-          className={showBlurUrl ? `${BETTER_CLASS}-blur` : className}
-          ref={(e) => {
-            this.imageWrapRef = e
-          }}
-          src={renderImageSrc}
-        />
-      )
-    }
-
-    // 预先占位 缩略图
-    if (showBlurUrl) {
-      const blurStyle: React.CSSProperties = {
-        position: 'relative',
-        overflow: 'hidden'
-      }
-      if (ratio) {
-        blurStyle.paddingTop = `${(ratio * 100).toFixed(4)}%`
-      } else if (width && height) {
-        blurStyle.width = `${width}px`
-        blurStyle.height = `${height}px`
-      }
-
-      return (
-        <div
-          ref={(e) => {
-            this.imageWrapRef = e
-          }}
-          className={`${BETTER_CLASS}-blur ${className}`}
-          style={blurStyle}
-        >
-          <img
-            src={renderImageSrc}
-            style={{
-              position: 'absolute',
-              top: 0,
-              bottom: 0,
-              width: '100%',
-              height: '100%'
-            }}
-          />
-        </div>
-      )
-    }
-
-    // 获得真实图片后的设置
-    const realStyle: React.CSSProperties = {
-      display: 'block'
-    }
-
-    if (ratio) {
-      realStyle.width = '100%'
-      realStyle.height = 'auto'
-    } else if (width && height) {
-      realStyle.width = `${width}px`
-      realStyle.height = `${height}px`
-    }
-
-    return (
-      <img
-        className={`${className}`}
-        ref={(e) => {
-          this.imageWrapRef = e
-        }}
-        src={renderImageSrc}
-        style={realStyle}
-      />
-    )
+  if (img.complete) {
+    // If the real image fails to load, this will still remove the placeholder.
+    // This is the desired behavior for now, and will be revisited when error
+    // handling is worked on for the image component itself.
+    handleLoad()
+  } else {
+    img.onload = handleLoad
   }
 }
 
-export { getImgByWidth, getWebpByWidth, getWebpSupport, checkCanvasWebP, checkLoadWebp }
+
+export default function BetterPicture({
+  src,
+  layout,
+  objectFit,
+  width,
+  height,
+  ratio,
+  maxImageWidth,
+  className,
+  disableBlur,
+  enableWebp,
+  rootMargin,
+  withAnimation,
+  onClick
+}: UIProps) {
+  const {
+    blurSrc,
+    widthInt,
+    heightInt,
+    ratioInt,
+    maxWidthInt
+  } = getImgRealProps({ src, width, height, ratio, maxImageWidth })
+
+  const [setRef, inView] = useInView({
+    threshold: .25,
+  })
+
+  const [isIntersected, setIsIntersected] = useState(false)
+  const showBlur = ratioInt > 0 && !disableBlur
+  const isVisible = disableBlur || isIntersected
+  const srcAttr = isVisible ? src : 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
+  
+  const [isLoaded, setLoaded] = useState(disableBlur)
+  const [blurLoading, setBlurLoading] = useState(showBlur)
+  useEffect(() => {
+    if (inView) setIsIntersected(true)
+  }, [inView])
+  
+  // picture包装层
+  let innerStyle = {}
+  let innerClassName = {}
+  // 实际图片
+  let imgStyle = {}
+
+  if (showBlur) {
+    if (isSupportRatio) {
+      // imgStyle.aspectRatio = `${widthInt}/${heightInt}`
+      imgStyle[`--${PREFIX_CLASS}-ratio`] = `${widthInt}/${heightInt}`
+    } else {
+      innerStyle = {
+        paddingTop: `${heightInt / widthInt * 100}%`,
+      }
+      innerClassName = PREFIX_CLASS + '-inner-abs'
+
+      if (layout === 'fixed') {
+        innerStyle.width = widthInt + 'px'
+      }
+    }
+  }
+
+  if (objectFit) {
+    imgStyle.objectFit = objectFit
+  }
+
+  const onLoadingComplete = () => {
+    !isLoaded && setLoaded(true)
+  }
+
+  const onAnimationEnd = () => {
+    setBlurLoading(false)
+  }
+
+  return (
+    <div
+      className={cx(PREFIX_CLASS, className, {
+        [PREFIX_CLASS + '-' + (layout || 'layout-none')]: true,
+        [PREFIX_CLASS + '-with-blur']: ratioInt > 0,
+        [PREFIX_CLASS + '-with-ani']: withAnimation,
+        [PREFIX_CLASS + '-img-done']: isLoaded
+      })}
+      onClick={onClick}
+    >
+      {blurLoading && (
+        <>
+          {isSupportRatio ? (
+            <img
+              className={cx(PREFIX_CLASS + '-blur', {
+                [PREFIX_CLASS + '-blur-hide']: isLoaded
+              })}
+              width={widthInt}
+              src={blurSrc}
+              style={{
+                [`--${PREFIX_CLASS}-ratio`]: `${widthInt}/${heightInt}`
+              }}
+            />
+          ) : (
+            <svg
+              className={cx(PREFIX_CLASS + '-blur', {
+                [PREFIX_CLASS + '-blur-show']: isLoaded
+              })}
+              width={widthInt}
+              height={heightInt}
+              version='1.1'
+              xmlns='http://www.w3.org/2000/svg'
+              xmlnsXlink='http://www.w3.org/1999/xlink'
+              style={{
+                backgroundImage: `url(${blurSrc})`
+              }}
+            />
+          )}
+        </>
+      )}
+      <picture
+        className={cx(PREFIX_CLASS + '-inner', innerClassName)}
+        style={innerStyle}
+      >
+        {!srcAttr.startsWith('data:') && enableWebp && (
+          <source
+            type='image/webp'
+            srcSet={compressImage(srcAttr, maxWidthInt, true)}
+          />
+        )}
+        <img
+          src={compressImage(srcAttr, maxWidthInt)}
+          className={cx(PREFIX_CLASS + '-img')}
+          width={widthInt}
+          onAnimationEnd={onAnimationEnd}
+          ref={(img) => {
+            setRef(img)
+            !isLoaded && handleLoading(img, onLoadingComplete)
+          }}
+          style={imgStyle}
+        />
+      </picture>
+    </div>
+  )
+}

@@ -7,7 +7,8 @@ import * as clipboard from 'clipboard-polyfill/text'
 import Page from '../components/page';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import BetterImage, { checkCanvasWebP, getWebpByWidth, getWebpSupport } from '@xiaoxili/react-better-picture-cc';
+import BetterPicture from '@xiaoxili/react-better-picture-cc';
+import { checkCanvasWebP, getWebpByWidth, getWebpSupport } from '../utils/image-utils';
 import Slider3D from "../components/slider-3d";
 
 const detector = require('detector');
@@ -187,7 +188,7 @@ class App extends React.Component<Props, State> {
                 return (
                   <div key={index} className='item'>
                     <div className='image-now'>
-                      <BetterImage ratio={9 / 16} src={item.picUrl} maxImageWidth={(isPCMode ? 1200 : 600) + getRandom()} />
+                      <BetterPicture layout='responsive' ratio={9 / 16} src={item.picUrl} maxImageWidth={(isPCMode ? 1200 : 600) + getRandom()} />
                     </div>
                     <div className='item-main'>
                       <h3>标题</h3>
@@ -207,7 +208,7 @@ class App extends React.Component<Props, State> {
                 return (
                   <div key={index} className='item'>
                     <div className='image-now'>
-                      <BetterImage width={200} height={112} src={item.picUrl} maxImageWidth={(isPCMode ? 800 : 400) + getRandom()} />
+                      <BetterPicture layout='fixed' width={200} height={112} src={item.picUrl} maxImageWidth={(isPCMode ? 800 : 400) + getRandom()} />
                     </div>
                     <div className='item-main'>
                       <h3>标题</h3>

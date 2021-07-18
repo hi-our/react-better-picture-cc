@@ -1,0 +1,84 @@
+$prefixer = 'xxl'
+$class = s($prefixer + '-better-picture')
+
+@keyframes {$class}-to-hide 
+  0%
+    opacity 1
+    visibility visible
+  100%
+    opacity 0
+    visibility hidden
+@keyframes {$class}-to-show
+  0%
+    opacity 0
+    visibility hidden
+  100%
+    opacity 1
+    visibility visible
+
+.{$class}-responsive
+.{$class}-fixed
+  img
+  svg
+    max-width 100%
+    height auto
+  img
+    display block
+    object-fit cover
+  svg
+    display block
+    background-size cover
+    
+.{$class}-inner-abs
+  display block
+  position relative
+  overflow hidden
+
+  .{$class}-img
+    position absolute
+    left 0
+    top 0
+    width 100%
+    height 100%
+
+.{$class}-blur
+  background-size cover
+  background-repeat no-repeat
+
+.{$class}-blur
+.{$class}-img
+  aspect-ratio var(s('--' + $class + '-ratio'))
+
+
+// 存在blur图，不使用动画
+.{$class}-with-blur
+  position relative
+  
+  .{$class}-inner
+    position absolute
+    left 0
+    right 0
+    top 0
+    bottom 0
+    opacity 0
+    
+
+// 存在blur图，且使用动画
+.{$class}-img-done
+  .{$class}-blur
+    position absolute
+    left 0
+    right 0
+    top 0
+    bottom 0
+    opacity 0
+    z-index -1
+  .{$class}-inner
+    position static
+    opacity 1
+  &.{$class}-with-ani
+    .{$class}-blur
+      animation s($class + '-to-hide') 0.45s forwards
+
+    .{$class}-img
+      animation s($class + '-to-show') 0.45s forwards
