@@ -14,7 +14,17 @@ interface UIProps {
   /**
    * 图片Fit
    */
-  objectFit?: string
+  objectFit?: '-moz-initial'
+    | 'inherit'
+    | 'initial'
+    | 'revert'
+    | 'unset'
+    | 'contain'
+    | 'cover'
+    | 'fill'
+    | 'none'
+    | 'scale-down'
+    | undefined
   /**
    * 图片宽度
    */
@@ -59,7 +69,6 @@ interface UIProps {
   onClick: () => void
 }
 
-
 const PREFIX = 'xxl'
 
 const cx = require('classnames/bind') //.bind(styles)
@@ -96,16 +105,23 @@ const compressImage = (
   return compressedSrc
 }
 
+type getImgRealType = {
+  src: string
+  width: number | undefined
+  height: number | undefined
+  ratio: number | undefined
+  maxImageWidth: number | undefined
+}
 const getImgRealProps = ({
   src,
   width,
   height,
   ratio,
   maxImageWidth
-}: UIProps) => {
-  if (ratio) {
+}: getImgRealType) => {
+  if (ratio && maxImageWidth) {
     width = maxImageWidth
-    height = parseInt(maxImageWidth * ratio)
+    height = maxImageWidth * ratio
   } else if (width && height) {
     ratio = height / width
   }
@@ -117,7 +133,7 @@ const getImgRealProps = ({
     heightInt: height,
     ratioInt: ratio || 0,
     blurSrc,
-    maxWidthInt: maxImageWidth || width * 3
+    maxWidthInt: maxImageWidth || (width || 375) * 3
   }
 }
 
@@ -164,46 +180,48 @@ export default function BetterPicture({
   className,
   disableBlur,
   enableWebp,
-  rootMargin,
   withAnimation,
   onClick
 }: UIProps) {
-  const {
-    blurSrc,
-    widthInt,
-    heightInt,
-    ratioInt,
-    maxWidthInt
-  } = getImgRealProps({ src, width, height, ratio, maxImageWidth })
+  const { blurSrc, widthInt, heightInt, ratioInt, maxWidthInt } =
+    getImgRealProps({
+      src,
+      width,
+      height,
+      ratio,
+      maxImageWidth
+    })
 
   const [setRef, inView] = useInView({
-    threshold: .25,
+    threshold: 0.25
   })
 
   const [isIntersected, setIsIntersected] = useState(false)
   const showBlur = ratioInt > 0 && !disableBlur
   const isVisible = disableBlur || isIntersected
-  const srcAttr = isVisible ? src : 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
-  
+  const srcAttr = isVisible
+    ? src
+    : 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
+
   const [isLoaded, setLoaded] = useState(disableBlur)
   const [blurLoading, setBlurLoading] = useState(showBlur)
   useEffect(() => {
     if (inView) setIsIntersected(true)
   }, [inView])
-  
+
   // picture包装层
-  let innerStyle = {}
-  let innerClassName = {}
+  let innerStyle: JSX.IntrinsicElements['div']['style'] | undefined = {}
+  let innerClassName = ''
   // 实际图片
-  let imgStyle = {}
+  const imgStyle: JSX.IntrinsicElements['div']['style'] | undefined = {}
 
   if (showBlur) {
     if (isSupportRatio) {
       // imgStyle.aspectRatio = `${widthInt}/${heightInt}`
       imgStyle[`--${PREFIX_CLASS}-ratio`] = `${widthInt}/${heightInt}`
-    } else {
+    } else if (widthInt && heightInt) {
       innerStyle = {
-        paddingTop: `${heightInt / widthInt * 100}%`,
+        paddingTop: `${(heightInt / widthInt) * 100}%`,
       }
       innerClassName = PREFIX_CLASS + '-inner-abs'
 
@@ -235,35 +253,32 @@ export default function BetterPicture({
       })}
       onClick={onClick}
     >
-      {blurLoading && (
-        <>
-          {isSupportRatio ? (
-            <img
-              className={cx(PREFIX_CLASS + '-blur', {
-                [PREFIX_CLASS + '-blur-hide']: isLoaded
-              })}
-              width={widthInt}
-              src={blurSrc}
-              style={{
-                [`--${PREFIX_CLASS}-ratio`]: `${widthInt}/${heightInt}`
-              }}
-            />
-          ) : (
-            <svg
-              className={cx(PREFIX_CLASS + '-blur', {
-                [PREFIX_CLASS + '-blur-show']: isLoaded
-              })}
-              width={widthInt}
-              height={heightInt}
-              version='1.1'
-              xmlns='http://www.w3.org/2000/svg'
-              xmlnsXlink='http://www.w3.org/1999/xlink'
-              style={{
-                backgroundImage: `url(${blurSrc})`
-              }}
-            />
-          )}
-        </>
+      {blurLoading && isSupportRatio && (
+        <img
+          className={cx(PREFIX_CLASS + '-blur', {
+            [PREFIX_CLASS + '-blur-hide']: isLoaded
+          })}
+          width={widthInt}
+          src={blurSrc}
+          style={{
+            [`--${PREFIX_CLASS}-ratio`]: `${widthInt}/${heightInt}`
+          }}
+        />
+      )}
+      {blurLoading && !isSupportRatio && (
+        <svg
+          className={cx(PREFIX_CLASS + '-blur', {
+            [PREFIX_CLASS + '-blur-show']: isLoaded
+          })}
+          width={widthInt}
+          height={heightInt}
+          version='1.1'
+          xmlns='http://www.w3.org/2000/svg'
+          xmlnsXlink='http://www.w3.org/1999/xlink'
+          style={{
+            backgroundImage: `url(${blurSrc})`
+          }}
+        />
       )}
       <picture
         className={cx(PREFIX_CLASS + '-inner', innerClassName)}
